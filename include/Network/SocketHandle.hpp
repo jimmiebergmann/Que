@@ -1,0 +1,52 @@
+// ///////////////////////////////////////////////////////////////////////////
+// Copyright (C) 2017 Jimmie Bergmann - jimmiebergmann@gmail.com
+//
+// This software is provided 'as-is', without any express or
+// implied warranty. In no event will the authors be held
+// liable for any damages arising from the use of this software.
+//
+// Permission is granted to anyone to use this software for any purpose,
+// including commercial applications, and to alter it and redistribute
+// it freely, subject to the following restrictions:
+//
+// 1. The origin of this software must not be misrepresented;
+//    you must not claim that you wrote the original software.
+//    If you use this software in a product, an acknowledgment
+//    in the product documentation would be appreciated but
+//    is not required.
+//
+// 2. Altered source versions must be plainly marked as such,
+//    and must not be misrepresented as being the original software.
+//
+// 3. This notice may not be removed or altered from any
+//    source distribution.
+// ///////////////////////////////////////////////////////////////////////////
+
+#ifndef BIT_NETWORK_SOCKET_HANDLE_HPP
+#define BIT_NETWORK_SOCKET_HANDLE_HPP
+
+#include <Build.hpp>
+
+#if defined( QUE_PLATFORM_WINDOWS )
+#include <Win32/Windows.hpp>
+#undef SetPort
+#elif defined( QUE_PLATFORM_LINUX )
+#include <sys/socket.h>
+#include <netinet/in.h>
+#include <fcntl.h>
+#include <netdb.h>
+#include <netinet/in.h>
+#include <arpa/inet.h>
+#endif
+
+namespace Que
+{
+#if defined( QUE_PLATFORM_WINDOWS )
+	typedef SOCKET SocketHandle;
+#elif defined( QUE_PLATFORM_LINUX )
+	typedef unsigned int SocketHandle;
+#endif
+
+};
+
+#endif

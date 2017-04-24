@@ -1,0 +1,138 @@
+﻿<?xml version="1.0" encoding="utf-8"?>
+<Project ToolsVersion="4.0" xmlns="http://schemas.microsoft.com/developer/msbuild/2003">
+  <ItemGroup>
+    <Filter Include="Network">
+      <UniqueIdentifier>{697c9fec-7cea-45d2-bcc6-9e93322422df}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Win32">
+      <UniqueIdentifier>{13d597f5-aed4-4c7a-aeec-aba4707a7823}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System">
+      <UniqueIdentifier>{06dff196-c612-4421-9198-13ecca389d9a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="System\Win32">
+      <UniqueIdentifier>{d0a6b314-1beb-48ed-8efb-d7750532e01a}</UniqueIdentifier>
+    </Filter>
+    <Filter Include="Network\Win32">
+      <UniqueIdentifier>{36e28ba9-6378-403e-b70f-2deda19b8009}</UniqueIdentifier>
+    </Filter>
+  </ItemGroup>
+  <ItemGroup>
+    <ClInclude Include="..\..\include\Build.hpp" />
+    <ClInclude Include="..\..\include\Connection.hpp" />
+    <ClInclude Include="..\..\include\Log.hpp" />
+    <ClInclude Include="..\..\include\Message.hpp" />
+    <ClInclude Include="..\..\include\Server.hpp" />
+    <ClInclude Include="..\..\include\Settings.hpp" />
+    <ClInclude Include="..\..\include\Win32\Windows.hpp">
+      <Filter>Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\File.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\MemoryLeak.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\Semaphore.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\Sleep.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\ThreadValue.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\Time.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\Timestamp.hpp">
+      <Filter>System</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\System\Win32\FileWin32.hpp">
+      <Filter>System\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\Address.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\Socket.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\SocketBase.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\SocketHandle.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\TcpListener.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\TcpListenerBase.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\TcpSocket.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\TcpSocketBase.hpp">
+      <Filter>Network</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\Win32\SocketWin32.hpp">
+      <Filter>Network\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\Win32\TcpListenerWin32.hpp">
+      <Filter>Network\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\Network\Win32\TcpSocketWin32.hpp">
+      <Filter>Network\Win32</Filter>
+    </ClInclude>
+    <ClInclude Include="..\..\include\ConnectionSelector.hpp" />
+    <ClInclude Include="..\..\include\MessageParser.hpp" />
+  </ItemGroup>
+  <ItemGroup>
+    <None Include="..\..\include\Message.inl" />
+    <None Include="..\..\include\System\ThreadValue.inl">
+      <Filter>System</Filter>
+    </None>
+  </ItemGroup>
+  <ItemGroup>
+    <ClCompile Include="..\..\include\System\Timestamp.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Connection.cpp" />
+    <ClCompile Include="..\..\source\Log.cpp" />
+    <ClCompile Include="..\..\source\Message.cpp" />
+    <ClCompile Include="..\..\source\Server.cpp" />
+    <ClCompile Include="..\..\source\Settings.cpp" />
+    <ClCompile Include="..\..\source\System\MemoryLeak.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\System\Sleep.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\System\Time.cpp">
+      <Filter>System</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\System\Win32\FileWin32.cpp">
+      <Filter>System\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\Address.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\Socket.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\SocketBase.cpp">
+      <Filter>Network</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\Win32\SocketWin32.cpp">
+      <Filter>Network\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\Win32\TcpListenerWin32.cpp">
+      <Filter>Network\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\Network\Win32\TcpSocketWin32.cpp">
+      <Filter>Network\Win32</Filter>
+    </ClCompile>
+    <ClCompile Include="..\..\source\ConnectionSelector.cpp" />
+    <ClCompile Include="..\..\source\MessageParser.cpp" />
+  </ItemGroup>
+</Project>

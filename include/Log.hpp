@@ -23,46 +23,61 @@
 // ///////////////////////////////////////////////////////////////////////////
 
 #include <Build.hpp>
+#include <string>
+#include <sstream>
 
+
+////////////////////////////////////////////////////////////////
+/// The log functionality is just for debugging.
+///	 Let the preprocessor ignore all QueLog* definitions if not in debug build.
+///
+////////////////////////////////////////////////////////////////
 #ifndef QUE_LOG_HPP
 #define QUE_LOG_HPP
 
-#include <sstream>
-
-#define QueLogInfo(message) Que::Private::Log::GetStream()<<message;Que::Private::Log::Flush("Info");
-#define QueLogError(message) Que::Private::Log::GetStream()<<message;Que::Private::Log::Flush("Error");
-#define QueLogWarning(message) Que::Private::Log::GetStream()<<message;Que::Private::Log::Flush("Warning");
-
 #ifdef QUE_BUILD_DEBUG
-#define QueLogDebug(message) Que::Private::Log::GetStream()<<message;Que::Private::Log::Flush("Debug");
-#else
-#define QueLogDebug sizeof
-#endif
 
+#define QueLogInfo(message) Que::Private::Log::GetStream() << message; Que::Private::Log::Flush("Info");
+#define QueLogError(message) Que::Private::Log::GetStream() << message; Que::Private::Log::Flush("Error");
+#define QueLogWarning(message) Que::Private::Log::GetStream() << message; Que::Private::Log::Flush("Warning");
+
+#else
+
+#define QueLogInfo sizeof
+#define QueLogError sizeof
+#define QueLogWarning sizeof
+
+#endif
 
 namespace Que
 {
-
 	namespace Private
 	{
 
+		////////////////////////////////////////////////////////////////
+		/// \brief Private log class.
+		///
+		////////////////////////////////////////////////////////////////
 		class Log
 		{
 
 		public:
 
-			static bool Open(const std::string & p_LogFile, const bool p_AppendOld);
+			////////////////////////////////////////////////////////////////
+			/// \brief Flush message to the log.
+			///
+			////////////////////////////////////////////////////////////////
+			static void Flush(const std::string & p_Type);
 
-			static void Close();
-
+			////////////////////////////////////////////////////////////////
+			/// \brief Get stream for writing.
+			///
+			////////////////////////////////////////////////////////////////
 			static std::stringstream & GetStream();
 
-			static void Flush(const char * p_pType );
-
 		};
-
 	}
-
 }
+
 
 #endif

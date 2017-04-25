@@ -49,16 +49,12 @@ namespace Que
 		////////////////////////////////////////////////////////////////
 		Settings(	const Address		p_ListenAddress = Address(0),
 					const unsigned int	p_ListenPort = 11400,
-					const std::string	p_RootDir = "",
-					const std::string	p_LogFile = "",
 					const unsigned int	p_MaxMessageSize = 65535,
 					const unsigned int	p_MaxConnections = 0);
 
 		// Public variables.
 		Address			ListenAddress;	///< Listening address.
 		unsigned int	ListenPort;		///< Listening port.
-		std::string		RootDir;		///< Server root path.
-		std::string		LogFile;		///< Log file path.
 		unsigned int	MaxMessageSize; ///< Maximum size of message.
 		unsigned int	MaxConnections;	//< NOT IN USE YET.
 	};

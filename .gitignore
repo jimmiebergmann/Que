@@ -42,6 +42,7 @@ lib
 *.depend
 *.log
 *.tlog
+*.db
 
 # Executables
 *.exe

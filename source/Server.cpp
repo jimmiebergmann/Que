@@ -53,12 +53,6 @@ namespace Que
 		// Copy the settings
 		m_Settings = p_Settings;
 
-		// Open log
-		if (OpenLog(m_Settings.LogFile) == false)
-		{
-			return false;
-		}
-
 		// Error check the settings.
 		if (m_Settings.MaxMessageSize == 0)
 		{
@@ -186,7 +180,7 @@ namespace Que
 						throw std::exception("ConnectionThread: Received 0 data.");
 					}
 
-					QueLogDebug("Received from " << pConnection->GetSocket().GetPeerAddress().GetPretty() << ":"
+					QueLogInfo("Received from " << pConnection->GetSocket().GetPeerAddress().GetPretty() << ":"
 						<< pConnection->GetSocket().GetPeerPort() << ": " << recvSize);
 
 
@@ -663,73 +657,6 @@ namespace Que
 	bool Server::RespondeIdle(Connection * p_pConnection)
 	{
 		return Responde(p_pConnection, "IDLE\n");
-	}
-
-	bool Server::OpenLog(const std::string & p_Path)
-	{
-		// Should we use program directory?
-		bool customPath = false;
-		if (p_Path == "")
-		{
-#ifdef QUE_PLATFORM_WINDOWS
-			const int bufferLen = 1024;
-			char buffer[bufferLen];
-
-			int bytes = GetModuleFileName(NULL, buffer, bufferLen);
-			if (bytes == 0 || GetLastError() == ERROR_INSUFFICIENT_BUFFER)
-			{
-				std::cout << "Que error: Failed to get execution file name." << std::endl;
-				return false;
-			}
-			std::string programName;
-			programName.assign(buffer);
-
-			size_t pos1 = programName.find_last_of('/');
-			size_t pos2 = programName.find_last_of('\\');
-			size_t lastSlashPos = std::string::npos; 
-			if (pos1 != std::string::npos && pos2 != std::string::npos)
-			{
-				lastSlashPos = pos1 > pos2 ? pos1 : pos2;
-			}
-			else if (pos1 != std::string::npos && pos2 == std::string::npos)
-			{
-				lastSlashPos = pos1;
-			}
-			else if (pos1 == std::string::npos && pos2 != std::string::npos)
-			{
-				lastSlashPos = pos2;
-			}
-
-			if (lastSlashPos == std::string::npos)
-			{
-				std::cout << "Que error: Failed to get execution path." << std::endl;
-				return false;
-			}
-
-			std::string programDir = programName.substr(0, lastSlashPos);
-
-			// Set final log path.
-			m_Settings.LogFile = programDir + "/que.log";
-
-			customPath = true;
-#else
-#error Invalid platform.
-#endif
-		}
-
-		// Open the log
-		if (Private::Log::Open(p_Path, true) == false)
-		{
-			std::cout << "Que error: Failed to open log: " << m_Settings.LogFile << std::endl;
-			return false;
-		}
-
-		if (customPath)
-		{
-			std::cout << "Que info: Opened log: " << m_Settings.LogFile << std::endl;
-		}
-
-		return true;
 	}
 
 }

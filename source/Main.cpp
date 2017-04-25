@@ -33,8 +33,6 @@ using namespace Que;
 static int g_ArgCount = 0;
 static Que::Address g_Address;
 static unsigned short g_Port = 11400;
-static std::string g_ServerRoot = "";
-static std::string g_ServerLog = "";
 static unsigned int g_MaxMessageSize = 65535;
 
 // Static functions
@@ -61,7 +59,7 @@ int main(int argc, char ** argv)
 
 	// Run Que
 	Server que;
-	Settings settings(g_Address, g_Port, g_ServerRoot, g_ServerLog, g_MaxMessageSize);
+	Settings settings(g_Address, g_Port, g_MaxMessageSize);
 	que.Run(settings);
 
 #ifdef QUE_BUILD_DEBUG
@@ -142,29 +140,6 @@ bool HandleArguments(int argc, char ** argv)
 			}
 			g_Port = static_cast<unsigned short>(portNum);
 
-			continue;
-		}
-		else if (strcmp(argv[i], "-d") == 0 || strcmp(argv[i], "DIR") == 0)
-		{
-			if (!EnoughArguments(i, 1))
-			{
-				std::cout << "Missing argument value: -d DIR";
-				return false;
-			}
-
-			g_ServerRoot.assign(argv[++i]);
-			continue;
-		}
-
-		else if (strcmp(argv[i], "-o") == 0 || strcmp(argv[i], "LOG") == 0)
-		{
-			if (!EnoughArguments(i, 1))
-			{
-				std::cout << "Missing argument value: -o LOG";
-				return false;
-			}
-
-			g_ServerLog.assign(argv[++i]);
 			continue;
 		}
 		else if (strcmp(argv[i], "-m") == 0 || strcmp(argv[i], "SIZE") == 0)

@@ -29,14 +29,10 @@ namespace Que
 
 	Settings::Settings(	const Address		p_ListenAddress,
 						const unsigned int	p_ListenPort,
-						const std::string	p_RootDir,
-						const std::string	p_LogFile,
 						const unsigned int	p_MaxMessageSize,
 						const unsigned int	p_MaxConnections) :
 		ListenAddress(p_ListenAddress),
 		ListenPort(p_ListenPort),
-		RootDir(p_RootDir),
-		LogFile(p_LogFile),
 		MaxMessageSize(p_MaxMessageSize),
 		MaxConnections(p_MaxConnections)
 	{

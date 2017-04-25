@@ -38,14 +38,12 @@
     <ClInclude Include="..\..\include\Network\Win32\TcpSocketWin32.hpp" />
     <ClInclude Include="..\..\include\Server.hpp" />
     <ClInclude Include="..\..\include\Settings.hpp" />
-    <ClInclude Include="..\..\include\System\File.hpp" />
     <ClInclude Include="..\..\include\System\MemoryLeak.hpp" />
     <ClInclude Include="..\..\include\System\Semaphore.hpp" />
     <ClInclude Include="..\..\include\System\Sleep.hpp" />
     <ClInclude Include="..\..\include\System\ThreadValue.hpp" />
     <ClInclude Include="..\..\include\System\Time.hpp" />
     <ClInclude Include="..\..\include\System\Timestamp.hpp" />
-    <ClInclude Include="..\..\include\System\Win32\FileWin32.hpp" />
     <ClInclude Include="..\..\include\Win32\Windows.hpp" />
   </ItemGroup>
   <ItemGroup>
@@ -53,7 +51,6 @@
     <None Include="..\..\include\System\ThreadValue.inl" />
   </ItemGroup>
   <ItemGroup>
-    <ClCompile Include="..\..\include\System\Timestamp.cpp" />
     <ClCompile Include="..\..\source\Connection.cpp" />
     <ClCompile Include="..\..\source\ConnectionSelector.cpp" />
     <ClCompile Include="..\..\source\Log.cpp" />
@@ -70,7 +67,7 @@
     <ClCompile Include="..\..\source\System\MemoryLeak.cpp" />
     <ClCompile Include="..\..\source\System\Sleep.cpp" />
     <ClCompile Include="..\..\source\System\Time.cpp" />
-    <ClCompile Include="..\..\source\System\Win32\FileWin32.cpp" />
+    <ClCompile Include="..\..\source\System\Timestamp.cpp" />
   </ItemGroup>
   <PropertyGroup Label="Globals">
     <ProjectGuid>{32094076-A66E-4D64-88C4-687E48475077}</ProjectGuid>

@@ -23,94 +23,32 @@
 // ///////////////////////////////////////////////////////////////////////////
 
 #include <Log.hpp>
-#include <System/Timestamp.hpp>
 #include <mutex>
-#include <fstream>
 #include <iostream>
-#include <System/MemoryLeak.hpp>
 
 // Static variables
-static std::stringstream g_StringStream;
-static std::ofstream g_FileStream;
-static bool g_FileOpen = false;
-static std::mutex g_Mutex;
-
-// Static functions
-static std::string GetNumberMin2(const unsigned int number);
+static std::mutex			g_Mutex;
+static std::stringstream	g_Stream;
 
 namespace Que
 {
 	namespace Private
 	{
 
-		bool Log::Open(const std::string & p_LogFile, const bool p_AppendOld)
+		void Log::Flush(const std::string & p_Type)
 		{
-			int mode = 0;
-			if (p_AppendOld)
-			{
-				mode = std::fstream::app;
-			}
+			std::cout << "[" << p_Type << "] " << g_Stream.str();
+			g_Stream.str("");
 
-			g_FileStream.open(p_LogFile.c_str(), mode);
-			if (g_FileStream.is_open() == false)
-			{
-				return false;
-			}
-
-			g_FileOpen = true;
-			return true;
-		}
-
-		void Log::Close()
-		{
-			if (g_FileStream.is_open())
-			{
-				g_FileStream.close();
-			}
+			g_Mutex.unlock();
 		}
 
 		std::stringstream & Log::GetStream()
 		{
 			g_Mutex.lock();
-			return g_StringStream;
-		}
-
-		void Log::Flush(const char * p_pType)
-		{
-			if (g_FileOpen)
-			{
-				Timestamp time = Timestamp::Now();
-				g_FileStream << time.GetYear() << "-" << GetNumberMin2(time.GetMonth()) << "-" << GetNumberMin2(time.GetDay()) << " ";
-				g_FileStream << GetNumberMin2(time.GetHour()) << ":" << GetNumberMin2(time.GetMinute()) << ":" << GetNumberMin2(time.GetSecond()) << " ";
-				g_FileStream << "[" << p_pType << "] - " << g_StringStream.str() << std::endl;
-				g_FileStream.flush();
-			}
-
-#ifdef QUE_BUILD_DEBUG
-			std::cout << "[" << p_pType << "] - " << g_StringStream.str() << std::endl;
-#endif
-
-			g_StringStream.str("");
-			g_Mutex.unlock();
+			return g_Stream;
 		}
 
 	}
 
-}
-
-std::string GetNumberMin2(const unsigned int number)
-{
-	if (number == 0)
-	{
-		return "00";
-	}
-	
-	std::stringstream ss;
-	if (number < 10)
-	{
-		ss << "0";
-	}
-	ss << number;
-
-	return ss.str();;
 }

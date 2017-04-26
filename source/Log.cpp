@@ -37,7 +37,7 @@ namespace Que
 
 		void Log::Flush(const std::string & p_Type)
 		{
-			std::cout << "[" << p_Type << "] " << g_Stream.str();
+			std::cout << "[" << p_Type << "] " << g_Stream.str() << std::endl;
 			g_Stream.str("");
 
 			g_Mutex.unlock();

@@ -66,187 +66,173 @@ namespace Que
 		return true;
 	}
 
-
-	// Parameter class.
-	MessageParser::Parameter::Parameter() :
-		m_Type(None)
+	static int FindNewlineOrSpace(const char * p_pBuffer, const unsigned int p_BufferSize)
 	{
+		int pos = -1;
 
-	}
-
-	MessageParser::Parameter::~Parameter()
-	{
-		if (m_Type == String)
-		{
-			delete m_Data._String;
-		}
-	}
-
-	MessageParser::Parameter::Parameter(const std::string & p_Data)
-	{
-		// Empty paramter input
-		if (p_Data.size() == 0 )
-		{
-			return;
-		}
-
-		// Negative value, could be a signed integer.
-		unsigned int integer = 0;
-		if (StringToInteger(p_Data, integer))
-		{
-			m_Type = Integer;
-			m_Data._Integer = integer;
-			return;
-		}
-
-		// This is not an integer, then it's a string
-		m_Type = String;
-		m_Data._String = new std::string;
-		*m_Data._String = p_Data;
-	}
-
-	MessageParser::Parameter::eType MessageParser::Parameter::GetType() const
-	{
-		return m_Type;
-	}
-
-	bool MessageParser::Parameter::Empty() const
-	{
-		return m_Type == None;
-	}
-
-	unsigned int MessageParser::Parameter::AsInteger() const
-	{
-		switch (m_Type)
-		{
-		case Integer:
-		{
-			return m_Data._Integer;
-		}
-		break;
-		case String:
-		{
-			return 0;
-		}
-		break;
-		default:
-			return 0;
-			break;
-		}
-		return 0;
-	}
-
-	const std::string & MessageParser::Parameter::AsString() const
-	{
-		switch (m_Type)
-		{
-		case Integer:
-		{
-			return g_EmptyString;
-		}
-		break;
-		case String:
-		{
-			return *m_Data._String;
-		}
-		break;
-		default:
-			return g_EmptyString;
-			break;
-		}
-
-		return g_EmptyString;
-	}
-
-
-	// Message parser class.
-	MessageParser::Parameter MessageParser::m_NoneParameter;
-
-	MessageParser::MessageParser() :
-		m_Command(""),
-		m_NewLinePos(0)
-	{
-
-	}
-
-	MessageParser::~MessageParser()
-	{
-		for (unsigned int i = 0; i < GetParameterCount(); i++)
-		{
-			delete m_Parameters[i];
-		}
-	}
-
-	bool MessageParser::Parse(const char * p_pBuffer, const unsigned int p_BufferSize)
-	{
-		if (p_pBuffer == NULL || p_BufferSize == 0)
-		{
-			return false;
-		}
-
-		unsigned int currentPos = 0;
-		unsigned currentWordLength = 0;
-		bool lastWord = false;
-
-		// Loop the buffer
 		for (unsigned int i = 0; i < p_BufferSize; i++)
 		{
-			if (p_pBuffer[i] == '\n')
+			if (p_pBuffer[i] == '\n' || p_pBuffer[i] == ' ')
 			{
-				m_NewLinePos = i;
-				lastWord = true;
-			}
-			else if (p_pBuffer[i] != ' ')
-			{
-				continue;
-			}
-
-			const char * pBuffStart = p_pBuffer + currentPos;
-			const unsigned int wordLength = i - currentPos;
-
-			// Multiple spaces? Ignore them
-			if (wordLength == 0)
-			{
-				if (lastWord)
-				{
-					return true;
-				}
-
-				currentPos++;
-				continue;
-			}
-
-			std::string word;
-			word.assign(pBuffStart, 0, wordLength);
-
-			if (m_Command.size() == 0)
-			{
-				m_Command = word;
-				std::transform(m_Command.begin(), m_Command.end(), m_Command.begin(), ::toupper);
-			}
-			else
-			{
-				Parameter * pParameter = new Parameter(word);
-				if (pParameter->GetType() == Parameter::None)
-				{
-					delete pParameter;
-					return false;
-				}
-
-				m_Parameters.push_back(pParameter);
-			}
-
-			// Set new current pos
-			currentPos = i + 1;
-
-			// This is the last word, break!
-			if (lastWord)
-			{
+				pos = static_cast<int>(i);
 				break;
 			}
 		}
 
-		return lastWord;
+		return pos;
+	}
+
+
+
+
+
+	// Message parser class.
+	MessageParser::MessageParser(char * p_pBuffer, const unsigned int p_BufferSize) :
+		m_pBuffer(p_pBuffer),
+		m_BufferSize(p_BufferSize),
+		m_MessageStart(0),
+		m_MessageSize(0),
+		m_NextCommandPosition(0),
+		m_Command("")
+	{
+	}
+
+	MessageParser::~MessageParser()
+	{
+	}
+
+	bool MessageParser::Parse()
+	{
+		if (m_pBuffer == NULL || m_BufferSize == 0)
+		{
+			throw std::exception("MessageParser::Parse: NULL Buffer or m_BufferSize");
+		}
+		
+		int newLinePos = -1;
+		m_Command = "";
+
+		// Find first new line
+		if ((newLinePos = FindNewlineOrSpace(m_pBuffer, m_BufferSize)) == -1)
+		{
+			m_NextCommandPosition = m_BufferSize;
+			return false;
+		}
+		else if (newLinePos == 0)
+		{
+			m_NextCommandPosition++;
+			return false;
+		}
+
+		m_NextCommandPosition = newLinePos + 1;
+
+		// Get command
+		m_Command.assign(m_pBuffer, 0, newLinePos);
+		std::transform(m_Command.begin(), m_Command.end(), m_Command.begin(), ::toupper);
+
+		if (m_Command == "PUSH")
+		{
+			if (m_pBuffer[newLinePos] != ' ')
+			{
+				m_Command = "";
+				return false;
+			}
+
+			return ParseMessage(m_NextCommandPosition);
+		}
+		else if (m_Command == "PULL")
+		{
+			if (m_pBuffer[newLinePos] != '\n')
+			{
+				m_Command = "";
+				return false;
+			}
+
+			return true;
+		}
+		else if (m_Command == "ABORT")
+		{
+			if (m_pBuffer[newLinePos] != '\n')
+			{
+				m_Command = "";
+				return false;
+			}
+
+			return true;
+		}
+		else if (m_Command == "ACK")
+		{
+			if (m_pBuffer[newLinePos] != ' ')
+			{
+				m_Command = "";
+				return false;
+			}
+
+			return ParseMessage(m_NextCommandPosition);
+		}
+		
+		m_Command = "";
+		return true;
+	}
+
+
+	bool MessageParser::ParseMessage(const unsigned int p_CurrentPosition)
+	{
+		// End of buffer.
+		const unsigned int currPos = p_CurrentPosition;
+		if (p_CurrentPosition >= m_BufferSize)
+		{
+			return false;
+		}
+
+		// Get next space
+		int endOfMessPos = FindNewlineOrSpace(m_pBuffer + currPos, m_BufferSize + currPos);
+		if (endOfMessPos == -1)
+		{
+			m_NextCommandPosition = m_BufferSize;
+			m_Command = "";
+			return false;
+		}
+
+		endOfMessPos += currPos;
+		if (m_pBuffer[endOfMessPos] != '\n')
+		{
+			m_NextCommandPosition = endOfMessPos + 1;
+			m_Command = "";
+			return false;
+		}
+		
+		m_NextCommandPosition = endOfMessPos + 1;
+		std::string messageSizeString;
+		messageSizeString.assign(m_pBuffer + currPos, endOfMessPos - currPos);
+		unsigned int messageSize = 0;
+		if (StringToInteger(messageSizeString, messageSize) == false)
+		{
+			m_Command = "";
+			return false;
+		}
+
+		// Error check message size
+		if (messageSize + m_NextCommandPosition > m_BufferSize)
+		{
+			m_Command = "";
+			m_NextCommandPosition = m_BufferSize;
+			return false;
+		}
+
+		unsigned int endCharacterPos = messageSize + m_NextCommandPosition;
+
+		if (m_pBuffer[endCharacterPos] != '\n')
+		{
+			m_Command = "";
+			m_NextCommandPosition = m_BufferSize;
+			return false;
+		}
+
+		m_MessageStart = endOfMessPos + 1;
+		m_MessageSize = messageSize;
+		m_NextCommandPosition = endCharacterPos + 1;
+
+		return true;
 	}
 
 	const std::string & MessageParser::GetCommand() const
@@ -254,158 +240,15 @@ namespace Que
 		return m_Command;
 	}
 
-	const MessageParser::Parameter & MessageParser::GetParameter(const unsigned int p_Index) const
+	char * MessageParser::GetMessage(unsigned int & p_MessageSize)
 	{
-		if (p_Index >= GetParameterCount())
-		{
-			return m_NoneParameter;
-		}
-
-		return *m_Parameters[p_Index];
+		p_MessageSize = m_MessageSize;
+		return m_pBuffer + m_MessageStart;
 	}
 
-	unsigned int MessageParser::GetParameterCount() const
+	unsigned int MessageParser::GetNextCommandPosition() const
 	{
-		return static_cast<unsigned int>(m_Parameters.size());
+		return m_NextCommandPosition;
 	}
 
-	unsigned int MessageParser::GetNewLinePosition() const
-	{
-		return m_NewLinePos;
-	}
-
-
-
-
-
-
-
-
-
-
-
-	/*
-	static bool StringToUint64(const std::string & p_Input, uint64 & p_Out);
-
-	MessageParser::MessageParser(char * p_pBuffer, const int p_BufferSize) :
-		m_pBuffer(p_pBuffer),
-		m_BufferSize(p_BufferSize),
-		m_CurrentPos(0)
-	{
-	}
-
-	MessageParser::eResult MessageParser::GetWord(std::string & p_Word, const int p_MaxLength)
-	{
-		if (m_CurrentPos >= m_BufferSize)
-		{
-			return EndOfBuffer;
-		}
-
-		bool reachedMax = false;
-		bool reachedEnd = false;
-		int iteratedCount = 0;
-		int searchStart = m_CurrentPos;
-
-		// Go through buffer, find space or end of buffer.
-		int i = searchStart;
-		for (i;  i < m_BufferSize; i++)
-		{
-			if (m_CurrentPos - searchStart >= p_MaxLength)
-			{
-				reachedMax = true;
-				break;
-			}
-
-			m_CurrentPos++;
-
-			if (m_pBuffer[i] == ' ')
-			{
-				break;
-			}
-
-			iteratedCount++;
-
-			// Just allow readable ascii characters.
-			if (m_pBuffer[i] < 33 || m_pBuffer[i] > 126)
-			{
-				return Invalid;
-			}
-
-			if (i + 1 == m_BufferSize)
-			{
-				reachedEnd = true;
-				break;
-			}
-
-		}
-
-		// Copy message
-		p_Word.assign(m_pBuffer + searchStart, iteratedCount);
-
-		if (reachedEnd)
-		{
-			return ReachedEnd;
-		}
-
-		if (reachedMax)
-		{
-			return ReachedMax;
-		}
-
-		return Ok;
-	}
-
-	MessageParser::eResult MessageParser::GetInteger(uint64 & p_Integer, const int p_MaxLength)
-	{
-		std::string word = "";
-		eResult result = GetWord(word, p_MaxLength);
-
-		if(!StringToUint64(word, p_Integer))
-		{
-			return Invalid;
-		}
-
-		return result;
-	}
-
-	char * MessageParser::GetBuffer() const
-	{
-		return m_pBuffer;
-	}
-
-	int MessageParser::GetBufferSize() const
-	{
-		return m_BufferSize;
-	}
-	int MessageParser::GetPosition() const
-	{
-		return m_CurrentPos;
-	}
-
-	bool MessageParser::HasReachedEnd() const
-	{
-		return m_CurrentPos >= m_BufferSize;
-	}
-
-	bool StringToUint64(const std::string & p_Input, uint64 & p_Out)
-	{
-		uint64 result = 0;
-
-		int c = 0;
-		for (int i = p_Input.size() - 1; i >= 0; i--)
-		{
-			if (p_Input[i] < '0' && p_Input[i] > '9')
-			{
-				return false;
-			}
-
-			uint64 curNum = static_cast<uint64>(p_Input[c]) - 48ULL;
-			result += curNum * (std::pow<uint64>(10, i));
-			c++;
-		}
-
-		p_Out = result;
-		return true;
-	}
-	*/
 }

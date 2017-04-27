@@ -183,26 +183,76 @@ namespace Que
 		////////////////////////////////////////////////////////////////
 		bool RespondeIdle(Connection * p_pConnection);
 
+		// Private classes
+		class ReceivedData
+		{
+
+		public:
+
+			////////////////////////////////////////////////////////////////
+			/// \brief Initialize and copy received data from client.
+			///
+			////////////////////////////////////////////////////////////////
+			ReceivedData(const char * p_RecvBuffer, const unsigned int p_RecvSize);
+
+			////////////////////////////////////////////////////////////////
+			/// \brief Descructor
+			///
+			////////////////////////////////////////////////////////////////
+			~ReceivedData();
+
+			////////////////////////////////////////////////////////////////
+			/// \brief Get remainaing data. Set current posibion to decrease data.
+			///
+			////////////////////////////////////////////////////////////////
+			char * GetData(unsigned int & p_RemainingSize) const;
+
+			////////////////////////////////////////////////////////////////
+			/// \brief Move the current position by given amount of bytes.
+			///
+			////////////////////////////////////////////////////////////////
+			void MovePosition(const unsigned int p_Count);
+
+			////////////////////////////////////////////////////////////////
+			/// \brief Check if position reached end.
+			///
+			////////////////////////////////////////////////////////////////
+			bool IsFinished(const unsigned int p_Position) const;
+
+		private:
+
+			// Public variables
+			char *			m_pBuffer;
+			unsigned int	m_BufferSize;
+			unsigned int	m_CurrentPosition;
+		};
+
 		// Private typedefs
-		typedef std::map<uint64, Connection * > ConnectionMap;
-		typedef std::list<Message * >			MessageList;
-		typedef std::queue<uint64>				PullQueue;
+		typedef std::map<uint64, Connection * >			ConnectionMap;
+		typedef std::list<Message * >					MessageList;
+		typedef std::queue<uint64>						PullQueue;
+		typedef std::queue<ReceivedData *>				ReceivedDataQueue;
+		typedef std::map<uint64, ReceivedDataQueue *>	ConnectionDataMap;
 
 		// Private variables
-		ThreadValue<bool>				m_Running;				///< Indicates if the server is running.
-		Settings						m_Settings;				///< Strucutre full of server settings.	
-		std::thread						m_ListeningThread;		///< Thread for listenting for connections.
-		std::thread						m_ConnectionThread;		///< Mail thread of incoming messages.
-		std::thread						m_MessageThread;		///< Thread to handle messages.
-		std::thread						m_TimeToLiveThread;		///< Thread to handle job's time to live.
-		std::thread						m_TimeToAckThread;		///< Thread to handle job's time to ack.
-		TcpListener						m_Listener;				///< Listener of incoming connections.
-		ConnectionSelector				m_Selector;				///< Selector class for incoming messages/disconnections.
-		ThreadValue<ConnectionMap>		m_Connections;			///< Map of all connections.
-		ThreadValue<MessageList>		m_Messages;				///< List of messages waiting for being pulled.
-		Semaphore						m_MessageSemaphore;		///< Semaphore to notify if a new message is available.
-		ThreadValue<PullQueue>			m_PullQueue;			///< Queue of connections pulling.
-		Semaphore						m_PullSemaphore;		///< Semaphore to notify if a consumer pull.
+		ThreadValue<bool>				m_Running;					///< Indicates if the server is running.
+		Settings						m_Settings;					///< Strucutre full of server settings.	
+		std::thread						m_ListeningThread;			///< Thread for listenting for connections.
+		std::thread						m_ConnectionThread;			///< Mail thread of incoming messages.
+		std::thread						m_MessageThread;			///< Thread to handle messages.
+		std::thread						m_TimeToLiveThread;			///< Thread to handle job's time to live.
+		std::thread						m_TimeToAckThread;			///< Thread to handle job's time to ack.
+		TcpListener						m_Listener;					///< Listener of incoming connections.
+		ConnectionSelector				m_Selector;					///< Selector class for incoming messages/disconnections.
+		ThreadValue<ConnectionMap>		m_Connections;				///< Map of all connections.
+		ThreadValue<MessageList>		m_Messages;					///< List of messages waiting for being pulled.
+		Semaphore						m_MessageSemaphore;			///< Semaphore to notify if a new message is available.
+		ThreadValue<PullQueue>			m_PullQueue;				///< Queue of connections pulling.
+		Semaphore						m_PullSemaphore;			///< Semaphore to notify if a consumer pull.
+
+		ThreadValue<ConnectionDataMap>	m_ReceivedData;				///< Map of each connections incoming data packet.
+		std::thread						m_ReceivedDataThread;		///< Thead handling incoming connection data.
+		Semaphore						m_ReceivedDataSemaphore;	///< Semaphore for managing 
 
 	};
 

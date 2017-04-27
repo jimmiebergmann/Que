@@ -154,20 +154,29 @@ namespace Que
 				// Go through all selections.
 				for (auto sIt = selections.begin(); sIt != selections.end(); sIt++)
 				{
-					// Get connection
-					Connection * pConnection = *sIt;
+					int recvSize = 0;
+					Connection * pConnection = NULL;
+					uint64 connectionId = 0;
 
-					// Read from socket.
-					TcpSocket & tcpSocket = pConnection->GetSocket();
-					int recvSize = tcpSocket.Receive(pBuffer, bufferSize);
+					///< Lock connections mutex
+					{
+						std::lock_guard<std::mutex> lock(m_Connections.Mutex);
+
+						// Get connection
+						pConnection = *sIt;
+						connectionId = pConnection->GetId();
+
+						// Read from socket.
+						TcpSocket & tcpSocket = pConnection->GetSocket();
+						recvSize = tcpSocket.Receive(pBuffer, bufferSize);
+					}
+					///< Unlock connections mutex
 
 					// Close thread if not running anymore.
 					if (m_Running.Get() == false)
 					{
 						break;
 					}
-
-					// Check incoming data.
 
 					// Client disconnected.
 					if (recvSize == -1)
@@ -180,226 +189,368 @@ namespace Que
 						throw std::exception("ConnectionThread: Received 0 data.");
 					}
 
-					QueLogInfo("Received from " << pConnection->GetSocket().GetPeerAddress().GetPretty() << ":"
-						<< pConnection->GetSocket().GetPeerPort() << ": " << recvSize);
+					QueLogInfo("Received data: " << recvSize);
 
 
-					// Parse message
-					MessageParser messageParser;
-					if (messageParser.Parse(pBuffer, recvSize) == false)
+					ReceivedData * pRecvData = new ReceivedData(pBuffer, recvSize);
+
+					///< Lock received data mutex
 					{
-						RespondeBadFormat(pConnection);
-						continue;
+						std::lock_guard<std::mutex> lock(m_ReceivedData.Mutex);
+
+						// See if connection exists in the data map.
+						ConnectionDataMap::iterator it = m_ReceivedData.Value.find(connectionId);
+						
+						// create connection data.
+						if (it == m_ReceivedData.Value.end())
+						{
+							m_ReceivedData.Value.insert(std::pair<uint64, ReceivedDataQueue*>(connectionId, new ReceivedDataQueue));
+							it = m_ReceivedData.Value.find(connectionId);
+						}
+
+						// Add data to queue.
+						it->second->push(pRecvData);
+
+						m_ReceivedDataSemaphore.Notify();
 					}
+					///< Unlock received data mutex
+				}
+			}
 
-					const std::string & command = messageParser.GetCommand();
-					const unsigned int paramCount = messageParser.GetParameterCount();
-					const unsigned int newLinePos = messageParser.GetNewLinePosition();
+			// Clean up the buffer
+			delete pBuffer;
+		});
 
-					if (command == "PUSH")
+		m_ReceivedDataThread = std::thread([this]()
+		{
+			while (m_Running.Get())
+			{
+				// Wait for data to handle.
+				m_ReceivedDataSemaphore.Wait();
+
+				///< Lock received data mutex
+				{
+					std::lock_guard<std::mutex> lock(m_ReceivedData.Mutex);
+
+					// Go through all connection in data map
+					for (auto cIt = m_ReceivedData.Value.begin(); cIt != m_ReceivedData.Value.end();)
 					{
-						if (pConnection->GetState() != Connection::Idle)
+						const uint64 connectionId = cIt->first;
+						bool disconnected = false;
+
+						// Error check queue size
+						if (cIt->second->size() == 0)
 						{
-							RespondeBusy(pConnection);
-							continue;
+							throw std::exception("ReceivedDataThread: Connection data queue is empty.");
 						}
 
-						// Expect 3 paramters and integers
-						if (paramCount != 1 ||
-							messageParser.GetParameter(0).GetType() != MessageParser::Parameter::Integer)
+						// Get next data in queue
+						ReceivedData * pData = cIt->second->front();
+
+						// Parse message
+						unsigned int bufferSize = 0;
+						char * pBuffer = pData->GetData(bufferSize);
+
+
+						// Run a do while loop once, in order to be able to break it if an error occured.
+						enum eErrorType
 						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-							
-						// Error check message size
-						const unsigned int messageSize = messageParser.GetParameter(0).AsInteger();
-						const unsigned int actualMessageSize = recvSize - newLinePos - 2;
-						if (actualMessageSize != messageSize)
+							ErrorNone,
+							ErrorBadFormat,
+							ErrorBusy,
+							ErrorIdle
+						} error = ErrorNone;
+
+						MessageParser messageParser(pBuffer, bufferSize);
+
+						do
 						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-
-						// Let's create the message and store it for pulling.
-						const char * pMessageData = pBuffer + newLinePos + 1;
-						Message * pMessage = new Message(pMessageData, messageSize, pConnection->GetId());
-
-						///< Lock message mutex
-						{
-							std::lock_guard<std::mutex> lock(m_Messages.Mutex);
-							m_Messages.Value.push_back(pMessage);
-						}
-						///< Unlock connections mutex
-
-						m_MessageSemaphore.Notify();
-
-						pConnection->SetState(Connection::Producing, pMessage);
-
-						// Send no response until consumer ack or, tta is reached.
-						continue;
-					}
-					else if (command == "PULL")
-					{
-						if (pConnection->GetState() != Connection::Idle)
-						{
-							RespondeBusy(pConnection);
-							continue;
-						}
-
-						// Expect no paramters
-						if (paramCount != 0)
-						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-
-						///< Lock message mutex
-						{
-							std::lock_guard<std::mutex> lock(m_PullQueue.Mutex);
-							m_PullQueue.Value.push(pConnection->GetId());
-						}
-						///< Unlock connections mutex
-
-						pConnection->SetState(Connection::Consuming);
-						m_PullSemaphore.Notify();
-
-						// Send no response until a message is available.
-						continue;
-					}
-					else if (command == "ACK")
-					{
-						Message * pMessage = pConnection->GetMessage();
-
-						if (pConnection->GetState() != Connection::Consuming ||
-							pMessage == NULL)
-						{
-							RespondeIdle(pConnection);
-							continue;
-						}
-
-						uint64 producerId = pMessage->GetProdcer();
-
-						// Expect 1 paramter, and integer
-						if (paramCount != 1 ||
-							messageParser.GetParameter(0).GetType() != MessageParser::Parameter::Integer)
-						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-
-						const unsigned int messageSize = messageParser.GetParameter(0).AsInteger();
-
-						// Error check message size
-						const unsigned int actualMessageSize = recvSize - newLinePos - 2;
-						if (actualMessageSize != messageSize)
-						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-
-						// Get ack message
-						const char * pMessageData = pBuffer + newLinePos + 1;
-
-						// Get producer
-						Connection * pProducer = NULL;
-
-						///< Lock connections mutex
-						{
-							std::lock_guard<std::mutex> lock3(m_Connections.Mutex);
-							ConnectionMap::iterator cIt = m_Connections.Value.find(producerId);
-							if (cIt == m_Connections.Value.end())
+							if (messageParser.Parse() == false)
 							{
-								// Producer disconnected.
-								// Delete message.
-								pConnection->SetState(Connection::Idle, NULL);
-								delete pMessage;
-
-								continue;
+								error = ErrorBadFormat;
+								break;
 							}
 
-							// Try to send the message to the pulling client.
-							pProducer = cIt->second;
-						}
-						///< Unlock connections mutex
-						
-						// Send ack message to producer.
-						Responde(pProducer, pBuffer, recvSize);
+							const std::string & command = messageParser.GetCommand();
 
-						// Delete message.
-						pProducer->SetState(Connection::Idle, NULL);
-						pConnection->SetState(Connection::Idle, NULL);
-						delete pMessage;
+							QueLogInfo("Client sent command: " << command);
 
-						continue;
-					}
-					else if (command == "ABORT")
-					{
-						// Expect no paramters
-						if (paramCount != 0)
-						{
-							RespondeBadFormat(pConnection);
-							continue;
-						}
-
-						// Ignore idle states
-						const Connection::eState eConState = pConnection->GetState();
-						if (eConState == Connection::Idle)
-						{
-							RespondeIdle(pConnection);
-							continue;
-						}
-
-						Message * pMessage = pConnection->GetMessage();
-
-						// Check if connection is producting
-						if (eConState == Connection::Producing)
-						{
-							// Get message and remove it from consumer.
-							const uint64 consumer = pMessage->GetConsumer();
-							if (consumer != 0)
+							if (command == "PUSH")
 							{
 								///< Lock connections mutex
 								{
-									std::lock_guard<std::mutex> lock3(m_Connections.Mutex);
-									ConnectionMap::iterator cIt = m_Connections.Value.find(consumer);
-									if (cIt != m_Connections.Value.end())
+									std::lock_guard<std::mutex> lock(m_Connections.Mutex);
+
+									ConnectionMap::iterator conIt = m_Connections.Value.find(connectionId);
+									if (conIt != m_Connections.Value.end())
 									{
-										cIt->second->SetState(Connection::Idle);
+										Connection * pConnection = conIt->second;
+
+										if (pConnection->GetState() == Connection::Idle)
+										{
+											// Let's create the message and store it for pulling.
+											unsigned int messageSize = 0;
+											char * pMessageBuffer = messageParser.GetMessage(messageSize);
+											Message * pMessage = new Message(pMessageBuffer, messageSize, pConnection->GetId());
+
+											///< Lock message mutex
+											{
+												std::lock_guard<std::mutex> lock(m_Messages.Mutex);
+												m_Messages.Value.push_back(pMessage);
+											}
+											///< Unlock connections mutex
+
+											m_MessageSemaphore.Notify();
+
+											pConnection->SetState(Connection::Producing, pMessage);
+
+										}
+										else
+										{
+											error = ErrorBusy;
+										}
+									}
+									else
+									{
+										disconnected = true;
+									}
+								}
+								///< Unlock connections mutex
+							}
+							else if (command == "PULL")
+							{
+								///< Lock connections mutex
+								{
+									std::lock_guard<std::mutex> lock(m_Connections.Mutex);
+
+									ConnectionMap::iterator conIt = m_Connections.Value.find(connectionId);
+									if (conIt != m_Connections.Value.end())
+									{
+										Connection * pConnection = conIt->second;
+
+										if (pConnection->GetState() == Connection::Idle)
+										{
+											///< Lock pull queue mutex
+											{
+												std::lock_guard<std::mutex> lock(m_PullQueue.Mutex);
+												m_PullQueue.Value.push(pConnection->GetId());
+											}
+											///< Unlock pull queue mutex
+
+											pConnection->SetState(Connection::Consuming);
+											m_PullSemaphore.Notify();
+										}
+										else
+										{
+											error = ErrorBusy;
+										}
+									}
+									else
+									{
+										disconnected = true;
+									}
+								}
+								///< Unlock connections mutex
+
+							}
+							else if (command == "ABORT")
+							{
+								///< Lock connections mutex
+								{
+									std::lock_guard<std::mutex> lock(m_Connections.Mutex);
+
+									ConnectionMap::iterator conIt = m_Connections.Value.find(connectionId);
+									if (conIt != m_Connections.Value.end())
+									{
+										Connection * pConnection = conIt->second;
+
+										// Ignore idle states
+										const Connection::eState eConState = pConnection->GetState();
+										if (eConState != Connection::Idle)
+										{
+											Message * pMessage = pConnection->GetMessage();
+
+											// Check if connection is producting
+											if (eConState == Connection::Producing)
+											{
+												// Get message and remove it from consumer.
+												const uint64 consumer = pMessage->GetConsumer();
+												if (consumer != 0)
+												{
+													ConnectionMap::iterator cIt = m_Connections.Value.find(consumer);
+													if (cIt != m_Connections.Value.end())
+													{
+														cIt->second->SetState(Connection::Idle);
+													}
+												}
+
+												// Delete message
+												pConnection->SetState(Connection::Idle);
+												delete pMessage;
+											}
+											else if (eConState == Connection::Consuming)
+											{
+												pConnection->SetState(Connection::Idle);
+
+												// Add message back in queue.
+												///< Lock message mutex
+												{
+													std::lock_guard<std::mutex> lock(m_Messages.Mutex);
+													m_Messages.Value.push_front(pMessage);
+												}
+												///< Unlock connections mutex
+											}
+										}
+										else
+										{
+											error = ErrorIdle;
+										}
+									}
+									else
+									{
+										disconnected = true;
+									}
+								}
+								///< Unlock connections mutex
+							}
+							else if (command == "ACK")
+							{
+								///< Lock connections mutex
+								{
+									std::lock_guard<std::mutex> lock(m_Connections.Mutex);
+
+									ConnectionMap::iterator conIt = m_Connections.Value.find(connectionId);
+									if (conIt != m_Connections.Value.end())
+									{
+										Connection * pConnection = conIt->second;
+
+										Message * pMessage = pConnection->GetMessage();
+
+										if (pConnection->GetState() == Connection::Consuming &&
+											pMessage != NULL)
+										{
+											uint64 producerId = pMessage->GetProdcer();
+
+											unsigned int messageSize = 0;
+											char * pMessageBuffer = messageParser.GetMessage(messageSize);
+
+											// Get producer
+											Connection * pProducer = NULL;
+											ConnectionMap::iterator cIt = m_Connections.Value.find(producerId);
+											if (cIt == m_Connections.Value.end())
+											{
+												// Producer disconnected.
+												// Delete message.
+												pConnection->SetState(Connection::Idle, NULL);
+												delete pMessage;
+											}
+											else
+											{
+												// Try to send the message to the pulling client.
+												pProducer = cIt->second;
+
+
+												// Send ack message to producer.
+												Responde(pProducer, pMessageBuffer, messageSize);
+
+												// Delete message.
+												pProducer->SetState(Connection::Idle, NULL);
+												pConnection->SetState(Connection::Idle, NULL);
+												delete pMessage;
+											}
+										}
+										else
+										{
+											error = ErrorIdle;
+										}
+									}
+									else
+									{
+										disconnected = true;
 									}
 								}
 								///< Unlock connections mutex
 							}
 
-							// Delete message
-							pConnection->SetState(Connection::Idle);
-							delete pMessage;
-						}
-						else if (eConState == Connection::Consuming)
+
+
+						} while (false);
+
+						// Check if error occured.
+
+						///< Lock connections mutex
 						{
-							pConnection->SetState(Connection::Idle);
+							std::lock_guard<std::mutex> lock(m_Connections.Mutex);
 
-							// Add message back in queue.
-							///< Lock message mutex
+							ConnectionMap::iterator conIt = m_Connections.Value.find(connectionId);
+							if (conIt != m_Connections.Value.end())
 							{
-								std::lock_guard<std::mutex> lock(m_Messages.Mutex);
-								m_Messages.Value.push_front(pMessage);
+								Connection * pConnection = conIt->second;
+								if (error != ErrorNone)
+								{
+									if (error == ErrorBadFormat)
+									{
+										RespondeBadFormat(pConnection);
+									}
+									else if (error == ErrorIdle)
+									{
+										RespondeIdle(pConnection);
+									}
+									else if (error == ErrorBusy)
+									{
+										RespondeBusy(pConnection);
+									}
+								}
 							}
-							///< Unlock connections mutex
+							else
+							{
+								disconnected = true;
+							}
+
+						}
+						///< Unlock connections mutex
+
+						// Move to next received data or remove.
+						// Remove if disconnected.
+						if (disconnected || messageParser.GetNextCommandPosition() >= bufferSize)
+						{
+							// Delete message.
+							delete pData;
+							cIt->second->pop();
+
+							if (disconnected || cIt->second->size() == 0)
+							{
+								// Go through queue
+								while (cIt->second->size())
+								{
+									// Delete received data.
+									ReceivedData * pReceivedData = cIt->second->front();
+									cIt->second->pop();
+									delete pReceivedData;
+								}
+
+								// Delete queue.
+								delete cIt->second;
+
+								m_ReceivedData.Value.erase(cIt++);
+								continue;
+							}
+						}
+						else
+						{
+							pData->MovePosition(messageParser.GetNextCommandPosition());
+							m_ReceivedDataSemaphore.Notify();
 						}
 
-						continue;
+						// Go to next connection
+						++cIt;
 					}
-					else
-					{
-						RespondeUnkownCommand(pConnection);
-						continue;
-					}
-				}				
-			}
 
-			// Clean up the buffer
-			delete pBuffer;
+				}
+				///< Unlock received data mutex
+
+				QueLogInfo("handle message!");
+			}
 		});
 
 
@@ -478,7 +629,6 @@ namespace Que
 							Connection * pConnection = cIt->second;
 							if (pConnection->GetSocket().Send(pMessage->Get<char*>(), pMessage->GetSize()) != pMessage->GetSize())
 							{
-								Disconnect(pConnection);
 								m_MessageSemaphore.Notify();
 								continue;
 							}
@@ -519,11 +669,13 @@ namespace Que
 
 		m_MessageSemaphore.Notify();
 		m_PullSemaphore.Notify();
+		m_ReceivedDataSemaphore.Notify();
 
 		// Stop threads.
 		m_ListeningThread.join();
 		m_ConnectionThread.join();
 		m_MessageThread.join();
+		m_ReceivedDataThread.join();
 
 		// Delete connections.
 		for (auto cIt = m_Connections.Value.begin(); cIt != m_Connections.Value.end(); cIt++)
@@ -538,6 +690,23 @@ namespace Que
 			delete *mIt;
 		}
 		m_Messages.Value.clear();
+
+		// Delete data in queue
+		for (auto dIt = m_ReceivedData.Value.begin(); dIt != m_ReceivedData.Value.end(); dIt++)
+		{
+			// Go through queue
+			while (dIt->second->size())
+			{
+				// Delete received data.
+				ReceivedData * pReceivedData = dIt->second->front();
+				dIt->second->pop();
+				delete pReceivedData;
+			}
+
+			// Delete queue.
+			delete dIt->second;
+		}
+		m_ReceivedData.Value.clear();
 	}
 
 	bool Server::IsRunning()
@@ -616,7 +785,6 @@ namespace Que
 	{
 		if (p_pConnection->GetSocket().Send(p_pVoid, p_DataSize) != p_DataSize)
 		{
-			Disconnect(p_pConnection);
 			return false;
 		}
 
@@ -627,7 +795,6 @@ namespace Que
 	{
 		if (p_pConnection->GetSocket().Send(p_Message.c_str(), p_Message.size()) != p_Message.size())
 		{
-			Disconnect(p_pConnection);
 			return false;
 		}
 
@@ -659,4 +826,44 @@ namespace Que
 		return Responde(p_pConnection, "IDLE\n");
 	}
 
-}
+
+	Server::ReceivedData::ReceivedData(const char * p_RecvBuffer, const unsigned int p_RecvSize) :
+		m_CurrentPosition(0)
+	{
+		if (p_RecvBuffer == NULL)
+		{
+			throw std::exception("Server - ReceivedData::ReceivedData: Buffer is NULL.");
+		}
+
+		if (p_RecvSize == 0)
+		{
+			throw std::exception("Server - ReceivedData::ReceivedData: p_RecvSize is 0.");
+		}
+
+		m_BufferSize = p_RecvSize;
+		m_pBuffer = new char[m_BufferSize];
+		memcpy(m_pBuffer, p_RecvBuffer, m_BufferSize);
+	}
+
+	Server::ReceivedData::~ReceivedData()
+	{
+		delete[] m_pBuffer;
+	}
+
+	char * Server::ReceivedData::GetData(unsigned int & p_RemainingSize) const
+	{
+		p_RemainingSize = m_BufferSize - m_CurrentPosition;
+		return m_pBuffer + m_CurrentPosition;
+	}
+
+	void Server::ReceivedData::MovePosition(const unsigned int p_Count)
+	{
+		m_CurrentPosition += p_Count;
+	}
+
+	bool Server::ReceivedData::IsFinished(const unsigned int p_Position) const
+	{
+		return m_CurrentPosition >= m_BufferSize;
+	}
+
+} 
